@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_todo"
+        android:icon="@drawable/ic_todo"
+        android:title="待办事项"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/action_site"
+        android:icon="@drawable/ic_web"
+        android:title="湖理网站"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_today"
+        android:icon="@drawable/ic_today"
+        android:title="回到本周"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_reminder"
+        android:title="上课提醒"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_reimport"
+        android:title="重新导入课表"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_semester"
+        android:title="学期设置"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_background"
+        android:title="更换课表背景"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_bg_overlay"
+        android:title="背景遮罩调节"
+        android:visible="false"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_clear_background"
+        android:title="恢复白色背景"
+        android:visible="false"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_show_other"
+        android:checkable="true"
+        android:title="显示非本周课程"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_about"
+        android:title="关于"
+        app:showAsAction="never" />
+</menu>

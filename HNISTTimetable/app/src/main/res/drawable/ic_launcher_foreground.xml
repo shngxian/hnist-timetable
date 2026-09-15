@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 日历造型的启动图标：白色本体 + 主题色格子，其中一格高亮表示“今天的课” -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 两个挂环 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,22 h6 a2,2 0 0 1 2,2 v12 a2,2 0 0 1 -2,2 h-6 a2,2 0 0 1 -2,-2 v-12 a2,2 0 0 1 2,-2 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M66,22 h6 a2,2 0 0 1 2,2 v12 a2,2 0 0 1 -2,2 h-6 a2,2 0 0 1 -2,-2 v-12 a2,2 0 0 1 2,-2 z" />
+
+    <!-- 日历本体 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M26,30 h56 a8,8 0 0 1 8,8 v46 a8,8 0 0 1 -8,8 h-56 a8,8 0 0 1 -8,-8 v-46 a8,8 0 0 1 8,-8 z" />
+
+    <!-- 顶部色条 -->
+    <path
+        android:fillColor="#3249BE"
+        android:pathData="M26,30 h56 a8,8 0 0 1 8,8 v6 h-72 v-6 a8,8 0 0 1 8,-8 z" />
+
+    <!-- 课程格子（3 列 × 2 行） -->
+    <path
+        android:fillColor="#C9D2FF"
+        android:pathData="M30,52 h12 a3,3 0 0 1 3,3 v6 a3,3 0 0 1 -3,3 h-12 a3,3 0 0 1 -3,-3 v-6 a3,3 0 0 1 3,-3 z" />
+    <path
+        android:fillColor="#4361EE"
+        android:pathData="M48,52 h12 a3,3 0 0 1 3,3 v18 a3,3 0 0 1 -3,3 h-12 a3,3 0 0 1 -3,-3 v-18 a3,3 0 0 1 3,-3 z" />
+    <path
+        android:fillColor="#C9D2FF"
+        android:pathData="M66,52 h12 a3,3 0 0 1 3,3 v6 a3,3 0 0 1 -3,3 h-12 a3,3 0 0 1 -3,-3 v-6 a3,3 0 0 1 3,-3 z" />
+    <path
+        android:fillColor="#C9D2FF"
+        android:pathData="M30,68 h12 a3,3 0 0 1 3,3 v12 a3,3 0 0 1 -3,3 h-12 a3,3 0 0 1 -3,-3 v-12 a3,3 0 0 1 3,-3 z" />
+    <path
+        android:fillColor="#FFB74D"
+        android:pathData="M66,68 h12 a3,3 0 0 1 3,3 v12 a3,3 0 0 1 -3,3 h-12 a3,3 0 0 1 -3,-3 v-12 a3,3 0 0 1 3,-3 z" />
+</vector>

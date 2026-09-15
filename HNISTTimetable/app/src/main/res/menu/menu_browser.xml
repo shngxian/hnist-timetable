@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_refresh"
+        android:icon="@drawable/ic_refresh"
+        android:title="刷新"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/action_external"
+        android:title="用系统浏览器打开"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_copy"
+        android:title="复制链接"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_clear"
+        android:title="清除网站数据（退出登录）"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_help"
+        android:title="打不开怎么办"
+        app:showAsAction="never" />
+</menu>

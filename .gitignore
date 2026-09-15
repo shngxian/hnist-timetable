@@ -1,0 +1,29 @@
+# ---- 不随仓库发布（个人信息/大文件/本机配置）----
+# 教务系统页面样本与调试截图（含个人课表、姓名、学号）
+analysis/
+screenshots/
+# 本地构建工具链（Gradle 发行版、gh CLI，326MB）
+build-tools/
+# 调试版 APK（正式版 APK 走 GitHub Releases，不入库）
+*.apk
+
+# 签名文件与本地配置
+*.jks
+*.keystore
+HNISTTimetable/local.properties
+
+# 调试素材：pick_sample.jpg 为本人照片
+HNISTTimetable/app/src/debug/assets/pick_sample.jpg
+
+# 构建产物与 IDE
+HNISTTimetable/.gradle/
+HNISTTimetable/app/build/
+HNISTTimetable/build/
+HNISTTimetable/.idea/
+HNISTTimetable/*.iml
+HNISTTimetable/.kotlin/
+.gradle/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
