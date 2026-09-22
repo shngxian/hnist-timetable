@@ -73,11 +73,12 @@ class TodoActivity : AppCompatActivity() {
     }
 
     private fun refresh() {
-        val today = LocalDate.now()
+        val now = LocalDateTime.now()
+        val today = now.toLocalDate()
         val items = TodoRepo.sorted(repo.list(), today)
         adapter.submit(items)
         empty.isVisible = items.isEmpty()
-        val pending = items.count { !it.doneEffective(today) && !it.isEnded(today) }
+        val pending = items.count { !it.doneEffective(today) && !it.isEnded(now) }
         toolbar.subtitle = when {
             items.isEmpty() -> null
             pending == 0 -> "今天全部完成 🎉"
@@ -108,6 +109,7 @@ class TodoActivity : AppCompatActivity() {
         val btnClearFrom = view.findViewById<MaterialButton>(R.id.btnClearFrom)
         val dueRow = view.findViewById<View>(R.id.dueRow)
         val btnDue = view.findViewById<MaterialButton>(R.id.btnDue)
+        val btnDueTime = view.findViewById<MaterialButton>(R.id.btnDueTime)
         val btnClearDue = view.findViewById<MaterialButton>(R.id.btnClearDue)
         val tvHint = view.findViewById<TextView>(R.id.tvRepeatHint)
 
@@ -115,6 +117,7 @@ class TodoActivity : AppCompatActivity() {
         var startTime: LocalTime? = existing?.startTime      // 重复待办每天的时刻
         var from: LocalDate? = existing?.from                // 重复待办的第一天
         var due: LocalDate? = existing?.due
+        var dueTimeOfDay: LocalTime? = existing?.dueTimeOfDay   // 截止当天的时刻，null = 全天
 
         // 回填重复设置
         when {
@@ -127,28 +130,38 @@ class TodoActivity : AppCompatActivity() {
         }
         fun isRecurring() = rgRepeat.checkedRadioButtonId != R.id.rpNone
         val dateFmt = DateTimeFormatter.ofPattern("M月d日")
+        val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
 
         fun renderPickers() {
             val recurring = isRecurring()
             weeklyDays.isVisible = rgRepeat.checkedRadioButtonId == R.id.rpWeekly
             fromRow.isVisible = recurring
             dueRow.isVisible = true
+            val dueTimeText = dueTimeOfDay?.let { " ${it.format(timeFmt)}" } ?: ""
             if (recurring) {
-                btnStart.text = startTime?.let { "每次 ${it.format(DateTimeFormatter.ofPattern("HH:mm"))} 开始" } ?: "设置开始时刻（可选）"
+                btnStart.text = startTime?.let { "每次 ${it.format(timeFmt)} 开始" } ?: "设置开始时刻（可选）"
                 btnClearStart.isVisible = startTime != null
                 btnFrom.text = from?.let { "从 ${it.format(dateFmt)} ${weekdayOf(it)} 开始" } ?: "开始日期（可选，默认从今天起）"
                 btnClearFrom.isVisible = from != null
-                btnDue.text = due?.let { "重复到 ${it.format(dateFmt)} ${weekdayOf(it)} 为止" } ?: "截止日期（可选，不填则一直重复）"
+                btnDue.text = due?.let { "重复到 ${it.format(dateFmt)} ${weekdayOf(it)}$dueTimeText 为止" }
+                    ?: "截止日期（可选，不填则一直重复）"
                 btnClearDue.isVisible = due != null
                 tvHint.text = "重复任务在开始日期到截止日期之间每天出现一次（都不填就一直重复）；勾选完成只算当天，第二天自动恢复并记录连续天数；设了开始时刻会到点提醒。"
             } else {
-                btnStart.text = start?.let { "开始 ${it.format(dateFmt)} ${weekdayOf(it.toLocalDate())} ${it.format(DateTimeFormatter.ofPattern("HH:mm"))}" }
+                btnStart.text = start?.let { "开始 ${it.format(dateFmt)} ${weekdayOf(it.toLocalDate())} ${it.format(timeFmt)}" }
                     ?: "设置开始时间"
                 btnClearStart.isVisible = start != null
-                btnDue.text = due?.let { "截止 ${it.format(dateFmt)} ${weekdayOf(it)}" } ?: "设置截止日期"
+                btnDue.text = due?.let { "截止 ${it.format(dateFmt)} ${weekdayOf(it)}$dueTimeText" } ?: "设置截止日期"
                 btnClearDue.isVisible = due != null
                 tvHint.text = "到了开始时间会发通知；开始后未完成的待办会一直显示在课表下方。"
             }
+            // 截止时刻只有先设了截止日期才有意义
+            btnDueTime.text = when {
+                due == null -> "截止时刻（全天）"
+                dueTimeOfDay == null -> "全天（点按设时刻）"
+                else -> "当天 ${dueTimeOfDay!!.format(timeFmt)} 截止"
+            }
+            btnDueTime.isEnabled = due != null
         }
         renderPickers()
         etTitle.setText(existing?.title ?: "")
@@ -196,8 +209,25 @@ class TodoActivity : AppCompatActivity() {
                 renderPickers()
             }, init.year, init.monthValue - 1, init.dayOfMonth).show()
         }
+        btnDueTime.setOnClickListener {
+            if (due == null) return@setOnClickListener
+            val init = dueTimeOfDay ?: LocalTime.of(22, 0)
+            TimePickerDialog(this, { _, hour, minute ->
+                dueTimeOfDay = LocalTime.of(hour, minute)
+                renderPickers()
+            }, init.hour, init.minute, true).show()
+        }
+        btnDueTime.setOnLongClickListener {
+            // 长按恢复“全天”
+            if (dueTimeOfDay != null) {
+                dueTimeOfDay = null
+                renderPickers()
+                true
+            } else false
+        }
         btnClearDue.setOnClickListener {
             due = null
+            dueTimeOfDay = null
             renderPickers()
         }
 
@@ -233,6 +263,13 @@ class TodoActivity : AppCompatActivity() {
                     Snackbar.make(view, "截止日期不能早于开始日期", Snackbar.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
+                val startVal = start
+                if (!recurring && startVal != null && due != null && due == startVal.toLocalDate() &&
+                    dueTimeOfDay != null && startVal.toLocalTime().isAfter(dueTimeOfDay)
+                ) {
+                    Snackbar.make(view, "截止时刻不能早于开始时刻", Snackbar.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
                 val note = etNote.text?.toString()?.trim().orEmpty()
                 val now = LocalDateTime.now()
                 val today = now.toLocalDate()
@@ -242,6 +279,7 @@ class TodoActivity : AppCompatActivity() {
                     start?.toString().orEmpty()
                 }
                 val dueText = due?.toString().orEmpty()
+                val dueTimeText = if (due != null) dueTimeOfDay?.format(timeFmt).orEmpty() else ""
                 val fromText = fromValue?.toString().orEmpty()
                 val timingUnchanged = existing != null && existing.startAt == startText &&
                     existing.repeat == repeat && existing.fromDate == fromText && existing.dueDate == dueText
@@ -264,6 +302,7 @@ class TodoActivity : AppCompatActivity() {
                     title = title,
                     note = note,
                     dueDate = dueText,
+                    dueTime = dueTimeText,
                     startAt = startText,
                     repeat = repeat,
                     fromDate = fromText,
@@ -308,9 +347,9 @@ class TodoActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         if (item.itemId == MENU_CLEAR_DONE) {
-            // 清掉已完成的普通待办和已结束（过了截止日）的重复任务
-            val today = LocalDate.now()
-            val done = repo.list().filter { (!it.isRecurring && it.done) || it.isEnded(today) }
+            // 清掉已完成的普通待办和已结束（过了截止时刻）的重复任务
+            val now = LocalDateTime.now()
+            val done = repo.list().filter { (!it.isRecurring && it.done) || it.isEnded(now) }
             if (done.isEmpty()) {
                 Snackbar.make(root, "没有可清除的待办（未结束的重复任务不会被清除）", Snackbar.LENGTH_SHORT).show()
             } else {
@@ -319,7 +358,7 @@ class TodoActivity : AppCompatActivity() {
                     .setMessage("删除 ${done.size} 项已完成/已结束的待办？")
                     .setNegativeButton("取消", null)
                     .setPositiveButton("删除") { _, _ ->
-                        repo.save(repo.list().filterNot { (!it.isRecurring && it.done) || it.isEnded(today) })
+                        repo.save(repo.list().filterNot { (!it.isRecurring && it.done) || it.isEnded(now) })
                         onDataChanged()
                     }
                     .show()
@@ -420,7 +459,7 @@ object TodoRowBinder {
         val now = LocalDateTime.now()
         val today = now.toLocalDate()
         val doneToday = item.doneEffective(today)
-        val ended = item.isEnded(today)
+        val ended = item.isEnded(now)
 
         check.setOnCheckedChangeListener(null)
         check.isChecked = doneToday || ended
@@ -449,8 +488,13 @@ object TodoRowBinder {
         val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
         val dateFmt = DateTimeFormatter.ofPattern("M月d日")
         val days = item.daysLeft(today)
+        val overdue = !ended && item.isOverdueAt(now)   // 设了截止时刻时，过了时刻当天也算过期
         val urgent = days != null && !doneToday && !ended
-        val urgency = if (urgent) urgencyColor(days!!, secondary) else secondary
+        val urgency = when {
+            urgent && overdue -> COLOR_OVERDUE
+            urgent -> urgencyColor(days!!, secondary)
+            else -> secondary
+        }
 
         if (item.isRecurring) {
             meta.isVisible = true
@@ -503,31 +547,33 @@ object TodoRowBinder {
             due.isVisible = false
         } else {
             due.isVisible = true
+            val dueTimeText = item.dueTimeOfDay?.let { " ${it.format(timeFmt)}" } ?: ""
             val text = when {
                 item.isRecurring && ended -> "已结束"
                 item.isRecurring -> when {
-                    days == 0L -> "最后一天"
+                    days == 0L -> "最后一天$dueTimeText"
                     days <= 7 -> "还剩${days}天"
-                    else -> "到 " + item.due!!.format(DateTimeFormatter.ofPattern("M/d"))
+                    else -> "到 " + item.due!!.format(DateTimeFormatter.ofPattern("M/d")) + dueTimeText
                 }
                 doneToday -> "已完成"
-                days < 0 -> "过期${-days}天"
-                days == 0L -> "今天截止"
-                days == 1L -> "明天截止"
+                overdue && days!! < 0L -> "过期${-days}天"
+                overdue -> "今天${dueTimeText}已过"
+                days == 0L -> "今天${dueTimeText}截止"
+                days == 1L -> "明天${dueTimeText}截止"
                 days <= 7 -> "${days}天后截止"
-                else -> item.due!!.format(DateTimeFormatter.ofPattern("M/d")) + " 截止"
+                else -> item.due!!.format(DateTimeFormatter.ofPattern("M/d")) + dueTimeText + " 截止"
             }
             val color = urgency
             due.text = text
             due.setTextColor(color)
             due.background = GradientDrawable().apply {
                 cornerRadius = 20f * context.resources.displayMetrics.density
-                setColor((color and 0x00FFFFFF) or (if (urgent && days!! <= 1) 0x26000000 else 0x1A000000))
+                setColor((color and 0x00FFFFFF) or (if (urgent && (overdue || days!! <= 1)) 0x26000000 else 0x1A000000))
             }
         }
 
         // 今天到期、明天到期或已过期的未完成任务，标题也跟着变色，一眼能看到
-        if (urgent && days!! <= 1) {
+        if (urgent && (overdue || days!! <= 1L)) {
             title.setTextColor(urgency)
         }
 

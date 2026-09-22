@@ -43,6 +43,14 @@ class UrpParserTest {
     }
 
     @Test
+    fun ignoresStaleWeekdayInNavbar() {
+        // 网页顶栏缓存的“星期几”可能是旧值（周二还显示周一），开学日必须按手机的实际星期推。
+        // 实际 bug：2026-09-22（周二，第 3 周）导入时页面还显示“星期一”，开学日被算成 09-08。
+        val stale = UrpParser.parse(json, "2026-2027 秋（两） 第3周 星期一", "", LocalDate.of(2026, 9, 22))
+        assertEquals("2026-09-07", stale.startDate)
+    }
+
+    @Test
     fun parsesWeekBitmapsAndCleansText() {
         val tt = UrpParser.parse(json, navText, "", today)
 

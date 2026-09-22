@@ -17,7 +17,17 @@ class TimetableRepo(context: Context) {
     fun load(): Timetable? {
         val raw = prefs.getString(KEY_TIMETABLE, null) ?: return null
         return try {
-            Timetable.fromJson(JSONObject(raw))
+            val timetable = Timetable.fromJson(JSONObject(raw))
+            // 旧版本导入时网页缓存了过期的“星期几”，可能存下非周一的开学日期，导致整周日期错位；
+            // 读取时自动对齐回所在周的周一并回写。
+            val start = runCatching { LocalDate.parse(timetable.startDate) }.getOrNull()
+            if (start != null && start.dayOfWeek != DayOfWeek.MONDAY) {
+                val fixed = timetable.copy(startDate = start.with(DayOfWeek.MONDAY).toString())
+                save(fixed)
+                fixed
+            } else {
+                timetable
+            }
         } catch (e: Exception) {
             null
         }

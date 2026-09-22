@@ -29,9 +29,18 @@ data class TodoItem(
     val startNotified: Boolean,   // 普通待办的开始提醒是否已发
     val lastDoneDate: String,     // 重复待办：最近完成的日期 yyyy-MM-dd
     val lastNotifiedDate: String, // 重复待办：最近已提醒的日期 yyyy-MM-dd
-    val streak: Int               // 重复待办：连续完成天数
+    val streak: Int,              // 重复待办：连续完成天数
+    val dueTime: String = ""      // 截止当天的时刻 HH:mm；空串 = 全天（当天结束前都算没过期）
 ) {
     val due: LocalDate? get() = if (dueDate.isBlank()) null else runCatching { LocalDate.parse(dueDate) }.getOrNull()
+
+    /** 截止当天的具体时刻，没设为 null。 */
+    val dueTimeOfDay: LocalTime?
+        get() = if (dueTime.isBlank()) null else runCatching { LocalTime.parse(dueTime) }.getOrNull()
+
+    /** 截止的具体时刻：有时刻用时刻，没设视为当天 23:59。 */
+    val dueAt: LocalDateTime?
+        get() = due?.let { it.atTime(dueTimeOfDay ?: LocalTime.of(23, 59)) }
 
     val from: LocalDate? get() = if (fromDate.isBlank() || !isRecurring) null else runCatching { LocalDate.parse(fromDate) }.getOrNull()
 
@@ -56,11 +65,17 @@ data class TodoItem(
 
     fun occursToday(today: LocalDate): Boolean = !isRecurring || occursTodayOn(today)
 
-    /** 重复待办：截止日已过，整个任务结束。 */
-    fun isEnded(today: LocalDate): Boolean {
+    /** 重复待办：过了截止日当天的截止时刻，整个任务结束。 */
+    fun isEnded(now: LocalDateTime): Boolean {
         if (!isRecurring) return false
-        val end = due ?: return false
-        return today.isAfter(end)
+        val end = dueAt ?: return false
+        return now.isAfter(end)
+    }
+
+    /** 截止时刻已过（普通待办设了截止时刻时精确到时分，否则当天结束）。 */
+    fun isOverdueAt(now: LocalDateTime): Boolean {
+        val end = dueAt ?: return false
+        return now.isAfter(end)
     }
 
     /** 今天是否已完成（重复待办看 lastDoneDate）。 */
@@ -70,18 +85,22 @@ data class TodoItem(
     /** 距截止日的天数：负数已过期，0 今天（重复待办也按最后一天算）。 */
     fun daysLeft(today: LocalDate): Long? = due?.let { ChronoUnit.DAYS.between(today, it) }
 
-    /** 紧急程度等级，数字越小越紧急：0 已过期，1 今天，2 明天，3 两三天内，4 一周内，5 更远，6 没有截止日。 */
-    fun urgencyRank(today: LocalDate): Int {
-        val days = daysLeft(today) ?: return 6
-        return when {
-            days < 0 -> 0
-            days == 0L -> 1
-            days == 1L -> 2
-            days <= 3 -> 3
-            days <= 7 -> 4
+    /** 紧急程度等级，数字越小越紧急：0 已过期，1 今天，2 明天，3 两三天内，4 一周内，5 更远，6 没有截止日。
+     *  设了截止时刻时，当天过了时刻就算过期。 */
+    fun urgencyRank(today: LocalDate, now: LocalDateTime): Int {
+        val end = due ?: return 6
+        if (now.isAfter(end.atTime(dueTimeOfDay ?: LocalTime.of(23, 59)))) return 0
+        return when (ChronoUnit.DAYS.between(today, end)) {
+            0L -> 1
+            1L -> 2
+            in 2L..3L -> 3
+            in 4L..7L -> 4
             else -> 5
         }
     }
+
+    /** 只按日期比较的便捷版（截止日当天 23:59 前都不算过期）。 */
+    fun urgencyRank(today: LocalDate): Int = urgencyRank(today, today.atTime(23, 59))
 
     /** 今天的这一次是否已经开始（重复待办按当天时刻算；没有时刻则视为已开始）。 */
     fun startedToday(now: LocalDateTime): Boolean {
@@ -182,6 +201,7 @@ data class TodoItem(
         put("title", title)
         put("note", note)
         put("dueDate", dueDate)
+        put("dueTime", dueTime)
         put("startAt", startAt)
         put("repeat", repeat)
         put("fromDate", fromDate)
@@ -200,6 +220,7 @@ data class TodoItem(
             title = o.optString("title"),
             note = o.optString("note"),
             dueDate = o.optString("dueDate"),
+            dueTime = o.optString("dueTime"),
             startAt = o.optString("startAt"),
             repeat = o.optString("repeat"),
             fromDate = o.optString("fromDate"),
@@ -280,17 +301,18 @@ class TodoRepo(context: Context) {
         return updated
     }
 
-    fun pendingCount(today: LocalDate = LocalDate.now()): Int =
-        list().count { !it.doneEffective(today) && !it.isEnded(today) }
+    fun pendingCount(today: LocalDate = LocalDate.now()): Int {
+        val now = LocalDateTime.now()
+        return list().count { !it.doneEffective(today) && !it.isEnded(now) }
+    }
 
-    /** 已经开始、今天还没完成的待办（课表主页下方展示）。 */
     /** 已经开始、今天还没完成的待办（课表主页下方展示），按紧急程度从高到低排。 */
     fun startedPending(now: LocalDateTime): List<TodoItem> {
         val today = now.toLocalDate()
         return list()
-            .filter { it.startedToday(now) && !it.doneEffective(today) && !it.isEnded(today) }
+            .filter { it.startedToday(now) && !it.doneEffective(today) && !it.isEnded(now) }
             .sortedWith(
-                compareBy<TodoItem> { it.urgencyRank(today) }
+                compareBy<TodoItem> { it.urgencyRank(today, now) }
                     .thenBy { it.due }
                     .thenBy { it.createdAt }
             )
@@ -303,9 +325,9 @@ class TodoRepo(context: Context) {
         fun sorted(items: List<TodoItem>, today: LocalDate = LocalDate.now()): List<TodoItem> {
             val now = LocalDateTime.now()
             return items.sortedWith(
-                compareBy<TodoItem> { it.doneEffective(today) || it.isEnded(today) }
-                    .thenBy { if (it.doneEffective(today) || it.isEnded(today)) -it.doneAt else 0L }
-                    .thenBy { it.urgencyRank(today) }
+                compareBy<TodoItem> { it.doneEffective(today) || it.isEnded(now) }
+                    .thenBy { if (it.doneEffective(today) || it.isEnded(now)) -it.doneAt else 0L }
+                    .thenBy { it.urgencyRank(today, now) }
                     .thenBy { it.due }
                     .thenByDescending { it.startedToday(now) }
                     .thenBy { it.createdAt }

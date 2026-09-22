@@ -181,6 +181,15 @@
                 app:icon="@drawable/ic_today" />
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDueTime"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:text="截止时刻（全天）"
+                app:cornerRadius="12dp" />
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnClearDue"
                 style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="wrap_content"

@@ -12,9 +12,10 @@ class TodoItemTest {
 
     private fun item(
         repeat: String, startAt: String, lastDoneDate: String = "", streak: Int = 0,
-        done: Boolean = false, fromDate: String = "", dueDate: String = "", createdOn: LocalDate? = null
+        done: Boolean = false, fromDate: String = "", dueDate: String = "", createdOn: LocalDate? = null,
+        dueTime: String = ""
     ) = TodoItem(
-        id = 1, title = "背单词", note = "", dueDate = dueDate, startAt = startAt, repeat = repeat,
+        id = 1, title = "背单词", note = "", dueDate = dueDate, dueTime = dueTime, startAt = startAt, repeat = repeat,
         fromDate = fromDate, done = done,
         createdAt = createdOn?.atStartOfDay(java.time.ZoneId.systemDefault())?.toInstant()?.toEpochMilli() ?: 0L,
         doneAt = 0, startNotified = false,
@@ -109,14 +110,14 @@ class TodoItemTest {
         val inside = LocalDate.of(2026, 9, 23)
         assertTrue(exam.occursToday(inside))
         assertTrue(exam.startedToday(inside.atTime(20, 0)))
-        assertFalse(exam.isEnded(inside))
+        assertFalse(exam.isEnded(inside.atTime(12, 0)))
 
         val lastDay = LocalDate.of(2026, 9, 25)
         assertEquals(lastDay.atTime(20, 0), exam.nextStartAfter(LocalDate.of(2026, 9, 24).atTime(21, 0)))
         assertNull(exam.nextStartAfter(lastDay.atTime(21, 0)))          // 最后一天过后不再提醒
 
         val after = LocalDate.of(2026, 9, 26)
-        assertTrue(exam.isEnded(after))
+        assertTrue(exam.isEnded(after.atTime(12, 0)))
         assertFalse(exam.occursToday(after))
         assertFalse(exam.startedToday(after.atTime(21, 0)))            // 结束后不再出现在主页
         assertEquals(2L, exam.daysLeft(inside))
@@ -125,7 +126,7 @@ class TodoItemTest {
     @Test
     fun recurringWithoutPeriodRunsForever() {
         val forever = item("daily", "08:00")
-        assertFalse(forever.isEnded(monday.plusYears(1)))
+        assertFalse(forever.isEnded(monday.plusYears(1).atTime(12, 0)))
         assertTrue(forever.occursToday(monday.plusYears(1)))
         assertNull(forever.daysLeft(monday))
     }
@@ -138,7 +139,7 @@ class TodoItemTest {
         assertTrue(once.startedToday(monday.atTime(22, 30)))
         assertTrue(once.markedDone(monday, 1L).done)
         assertTrue(once.markedDone(monday, 1L).doneEffective(monday.plusDays(3)))   // 普通待办不会自动恢复
-        assertFalse(once.copy(dueDate = "2026-09-10").isEnded(monday))              // 普通待办过期不算“结束”
+        assertFalse(once.copy(dueDate = "2026-09-10").isEnded(monday.atTime(12, 0)))   // 普通待办过期不算“结束”
     }
 
     @Test
@@ -146,5 +147,48 @@ class TodoItemTest {
         val original = item("weekly:2,5", "09:00", lastDoneDate = "2026-09-13", streak = 4, fromDate = "2026-09-01", dueDate = "2026-12-31")
         val restored = TodoItem.fromJson(original.toJson())
         assertEquals(original, restored)
+    }
+
+    @Test
+    fun dueTimeMakesOverduePrecise() {
+        val t = item("", "", dueDate = "2026-09-22", dueTime = "09:00")
+        val today = LocalDate.of(2026, 9, 22)
+        assertTrue(t.isOverdueAt(today.atTime(9, 1)))          // 过了截止时刻 → 过期
+        assertFalse(t.isOverdueAt(today.atTime(8, 59)))
+        assertEquals(0, t.urgencyRank(today, today.atTime(10, 0)))   // 已过时刻：过期级
+        assertEquals(1, t.urgencyRank(today, today.atTime(8, 0)))    // 没到时刻：仍是今天
+        assertEquals("09:00", t.dueTime)
+        assertEquals(java.time.LocalTime.of(9, 0), t.dueTimeOfDay)
+        assertEquals(today.atTime(9, 0), t.dueAt)
+    }
+
+    @Test
+    fun noDueTimeMeansWholeDay() {
+        val allDay = item("", "", dueDate = "2026-09-22")
+        val today = LocalDate.of(2026, 9, 22)
+        assertFalse(allDay.isOverdueAt(today.atTime(22, 0)))   // 没设时刻：当天结束前都不算过期
+        assertTrue(allDay.isOverdueAt(today.plusDays(1).atStartOfDay()))
+        assertEquals(1, allDay.urgencyRank(today, today.atTime(22, 0)))
+        assertNull(allDay.dueTimeOfDay)
+    }
+
+    @Test
+    fun recurringEndsAtDueTimeOnLastDay() {
+        val t = item("daily", "07:00", dueDate = "2026-09-25", dueTime = "18:00")
+        assertFalse(t.isEnded(LocalDate.of(2026, 9, 25).atTime(17, 59)))  // 最后一天没到时刻：未结束
+        assertTrue(t.isEnded(LocalDate.of(2026, 9, 25).atTime(18, 1)))    // 过了时刻：结束
+        assertFalse(t.isEnded(LocalDate.of(2026, 9, 24).atTime(23, 0)))   // 最后一天之前：未结束
+    }
+
+    @Test
+    fun dueTimeRoundTripsThroughJson() {
+        val original = item("", "", dueDate = "2026-09-30", dueTime = "17:30")
+        val restored = TodoItem.fromJson(original.toJson())
+        assertEquals("17:30", restored.dueTime)
+        assertEquals(java.time.LocalTime.of(17, 30), restored.dueTimeOfDay)
+        // 旧数据没有 dueTime 字段，读出来是空串，行为不变
+        val legacy = TodoItem.fromJson(item("", "", dueDate = "2026-09-30").toJson().apply { remove("dueTime") })
+        assertEquals("", legacy.dueTime)
+        assertNull(legacy.dueTimeOfDay)
     }
 }

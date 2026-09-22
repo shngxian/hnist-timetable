@@ -106,12 +106,15 @@ object UrpParser {
 
         val navWeek = Regex("第\\s*(\\d+)\\s*周").find(navText)?.groupValues?.get(1)?.toIntOrNull()
             ?: root.optString("csz").toIntOrNull()
-        val navWeekday = parseWeekday(navText) ?: today.dayOfWeek.value
+
+        // 网页顶栏的“星期几”可能是缓存的旧值（周二还显示周一），会让开学日期错一天、
+        // 整个网格的日期跟着偏移；星期一律按手机的实际日期算，页面只提供“第几周”。
+        val weekday = today.dayOfWeek.value
 
         val startDate = if (navWeek != null && navWeek >= 1) {
-            today.minusDays((navWeekday - 1).toLong()).minusWeeks((navWeek - 1).toLong())
+            today.minusDays((weekday - 1).toLong()).minusWeeks((navWeek - 1).toLong())
         } else {
-            today.minusDays((today.dayOfWeek.value - 1).toLong())
+            today.minusDays((weekday - 1).toLong())
         }
 
         val maxWeekUsed = courses.maxOfOrNull { it.weeks.max() } ?: 0
@@ -153,13 +156,6 @@ object UrpParser {
         raw.replace("*", " ").split(Regex("\\s+")).filter { it.isNotBlank() }.joinToString(" ")
 
     internal fun cleanRoom(raw: String): String = raw.replace("△", "").trim()
-
-    private fun parseWeekday(text: String): Int? {
-        val m = Regex("星期([一二三四五六日天])").find(text) ?: return null
-        return when (m.groupValues[1]) {
-            "一" -> 1; "二" -> 2; "三" -> 3; "四" -> 4; "五" -> 5; "六" -> 6; else -> 7
-        }
-    }
 
     private fun semesterName(navText: String, planNumber: String): String {
         Regex("(\\d{4}-\\d{4})\\s*([春夏秋冬])?").find(navText)?.let { m ->
