@@ -25,6 +25,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import cn.hnist.timetable.data.TimetableRepo
+import cn.hnist.timetable.importer.ExpImporter
 import cn.hnist.timetable.importer.UrpParser
 import cn.hnist.timetable.reminder.Reminders
 import cn.hnist.timetable.ui.EdgeToEdge
@@ -492,12 +493,20 @@ class LoginActivity : AppCompatActivity() {
         if (finished) return
         try {
             val timetable = UrpParser.parse(json, navText, studentName, LocalDate.now())
-            repo.save(timetable)
+            // 手动添加的课程和实验课不属于教务系统数据，重新导入课表时保留它们
+            val preserved = repo.load()?.courses?.filter {
+                it.courseNumber == ExpImporter.MANUAL_COURSE_NUMBER || it.courseNumber == ExpImporter.EXP_COURSE_NUMBER
+            } ?: emptyList()
+            val finalTimetable = if (preserved.isEmpty()) timetable
+            else timetable.copy(
+                courses = (timetable.courses + preserved).sortedWith(compareBy({ it.day }, { it.startNode }))
+            )
+            repo.save(finalTimetable)
             finished = true
             stopImport()
             progress.isVisible = false
             Reminders.reschedule(this)
-            val summary = "导入成功：${timetable.courses.size} 条课程安排" +
+            val summary = "导入成功：${finalTimetable.courses.size} 条课程安排" +
                 if (timetable.unscheduled.isNotEmpty()) "，另有 ${timetable.unscheduled.size} 门未排课" else ""
             setStatus(summary)
             Toast.makeText(this, summary, Toast.LENGTH_LONG).show()

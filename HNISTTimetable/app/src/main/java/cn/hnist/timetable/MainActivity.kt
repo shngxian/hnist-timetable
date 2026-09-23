@@ -17,10 +17,13 @@ import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.DecelerateInterpolator
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.RadioGroup
 import android.widget.SeekBar
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -28,6 +31,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import cn.hnist.timetable.data.TimetableRepo
+import cn.hnist.timetable.importer.ExpImporter
 import cn.hnist.timetable.model.Course
 import cn.hnist.timetable.model.Timetable
 import cn.hnist.timetable.reminder.Reminders
@@ -132,6 +136,7 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener { if (DebugHooks.installSample(this@MainActivity, repo)) reload() }
         }
         timetableView.onCourseClick = { showCourseDetail(it) }
+        timetableView.onEmptyClick = { day, node -> showAddCourseDialog(day, node) }
         applyBackground()
 
         // 左右滑动切换周次：课表区域用自定义 ScrollView 识别，星期表头用手势检测器
@@ -552,8 +557,79 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- 课程详情 ----------
 
-    private fun showCourseDetail(course: Course) {
+    /** 点课表空白格子：添加一门自定义课程，星期/节次预填为点中的位置。 */
+    private fun showAddCourseDialog(day: Int, node: Int) {
         val data = timetable ?: return
+        val view = layoutInflater.inflate(R.layout.dialog_course_add, null)
+        val etName = view.findViewById<TextInputEditText>(R.id.etName)
+        val etTeacher = view.findViewById<TextInputEditText>(R.id.etTeacher)
+        val etRoom = view.findViewById<TextInputEditText>(R.id.etRoom)
+        val spDay = view.findViewById<Spinner>(R.id.spDay)
+        val spStart = view.findViewById<Spinner>(R.id.spStart)
+        val spCount = view.findViewById<Spinner>(R.id.spCount)
+        val spWeeks = view.findViewById<Spinner>(R.id.spWeeks)
+
+        fun spinner(sp: Spinner, items: List<String>, sel: Int) {
+            sp.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, items)
+            sp.setSelection(sel.coerceIn(0, items.size - 1))
+        }
+        spinner(spDay, weekdayNames.map { "周$it" }, day - 1)
+        val maxNode = data.maxNode
+        spinner(spStart, (1..maxNode).map { "$it" }, node - 1)
+        spinner(spCount, (1..6).map { if (it == 1) "1 节" else "$it 节连上" }, 1)
+        spinner(spWeeks, listOf("每周（整学期）", "单周", "双周", "仅本周（第${selectedWeek}周）"), 0)
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("添加课程")
+            .setView(view)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("保存", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val name = etName.text?.toString()?.trim().orEmpty()
+                if (name.isEmpty()) {
+                    etName.error = "写个课程名"
+                    return@setOnClickListener
+                }
+                val weeks = when (spWeeks.selectedItemPosition) {
+                    1 -> (1..data.totalWeeks).filter { it % 2 == 1 }
+                    2 -> (1..data.totalWeeks).filter { it % 2 == 0 }
+                    3 -> listOf(selectedWeek)
+                    else -> (1..data.totalWeeks).toList()
+                }
+                val newCourse = Course(
+                    courseName = name,
+                    courseNumber = ExpImporter.MANUAL_COURSE_NUMBER,
+                    sequence = "",
+                    teacher = etTeacher.text?.toString()?.trim().orEmpty(),
+                    credit = 0.0,
+                    property = "手动",
+                    examType = "",
+                    day = spDay.selectedItemPosition + 1,
+                    startNode = spStart.selectedItemPosition + 1,
+                    nodeCount = spCount.selectedItemPosition + 1,
+                    weeks = weeks,
+                    weekDesc = "手动添加",
+                    campus = "",
+                    building = "",
+                    room = etRoom.text?.toString()?.trim().orEmpty(),
+                    colorIndex = (data.courses.map { it.colorIndex }.maxOrNull() ?: -1) + 1
+                )
+                val updated = data.copy(
+                    courses = (data.courses + newCourse).sortedWith(compareBy({ it.day }, { it.startNode }))
+                )
+                repo.save(updated)
+                dialog.dismiss()
+                reload()
+                Reminders.reschedule(this)
+                Toast.makeText(this, "已添加「$name」", Toast.LENGTH_SHORT).show()
+            }
+        }
+        dialog.show()
+    }
+
+    private fun showCourseDetail(course: Course) {        val data = timetable ?: return
         val dialog = BottomSheetDialog(this)
         val view = layoutInflater.inflate(R.layout.sheet_course, null)
         dialog.setContentView(view)
@@ -583,6 +659,36 @@ class MainActivity : AppCompatActivity() {
         if (course.teacher.isNotBlank()) addRow(rows, "教师", course.teacher)
         if (course.locationFull.isNotBlank()) addRow(rows, "地点", course.locationFull)
         if (!course.isInWeek(selectedWeek)) addRow(rows, "提示", "本周（第${selectedWeek}周）没有这节课")
+
+        // 手动添加的课程和导入的实验课可以删除（教务系统导入的课删了也没意义，重新导入会回来）
+        if (course.courseNumber == ExpImporter.MANUAL_COURSE_NUMBER || course.courseNumber == ExpImporter.EXP_COURSE_NUMBER) {
+            val del = com.google.android.material.button.MaterialButton(this).apply {
+                text = "删除这门课"
+                setTextColor(0xFFB71C1C.toInt())
+                setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            }
+            del.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { gravity = Gravity.END; topMargin = dp(10f) }
+            del.setOnClickListener {
+                MaterialAlertDialogBuilder(this)
+                    .setTitle("删除课程")
+                    .setMessage("删除「${course.courseName}」？")
+                    .setNegativeButton("取消", null)
+                    .setPositiveButton("删除") { _, _ ->
+                        val updated = data.copy(courses = data.courses.filterNot { it === course })
+                        repo.save(updated)
+                        timetable = updated
+                        dialog.dismiss()
+                        reload()
+                        Reminders.reschedule(this)
+                        Toast.makeText(this, "已删除「${course.courseName}」", Toast.LENGTH_SHORT).show()
+                    }
+                    .show()
+            }
+            rows.addView(del)
+        }
 
         dialog.show()
     }

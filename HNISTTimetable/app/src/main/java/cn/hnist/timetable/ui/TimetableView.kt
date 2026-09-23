@@ -11,7 +11,9 @@ import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
 import android.util.AttributeSet
 import android.util.TypedValue
+import android.view.GestureDetector
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.ViewGroup
 import android.widget.TextView
 import cn.hnist.timetable.model.Course
@@ -70,6 +72,23 @@ class TimetableView @JvmOverloads constructor(
 
     var onCourseClick: ((Course) -> Unit)? = null
 
+    /** 点击没有课程卡片的空白格子时回调（星期 1-7，节次 1..maxNode），用于手动添加课程。 */
+    var onEmptyClick: ((day: Int, node: Int) -> Unit)? = null
+
+    private val tapDetector = GestureDetector(
+        context,
+        object : GestureDetector.SimpleOnGestureListener() {
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                val day = ((e.x - leftColumnWidth) / ((width - leftColumnWidth) / 7f)).toInt() + 1
+                val node = (e.y / rowHeight).toInt() + 1
+                if (e.x > leftColumnWidth && day in 1..7 && node in 1..maxNode) {
+                    onEmptyClick?.invoke(day.coerceIn(1, 7), node.coerceIn(1, maxNode))
+                }
+                return true
+            }
+        }
+    )
+
     private val nodePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFF3E4553.toInt()
         textSize = dp(12.5f)
@@ -95,6 +114,18 @@ class TimetableView @JvmOverloads constructor(
     init {
         setWillNotDraw(false)
         setBackgroundColor(Color.WHITE)
+        isClickable = true
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        tapDetector.onTouchEvent(event)
+        if (event.action == MotionEvent.ACTION_UP) performClick()
+        return true
+    }
+
+    override fun performClick(): Boolean {
+        super.performClick()
+        return true
     }
 
     /** 设置/清除背景照片（传 null 恢复纯白）。 */

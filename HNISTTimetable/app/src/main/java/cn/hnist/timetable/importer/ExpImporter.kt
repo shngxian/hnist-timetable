@@ -27,6 +27,9 @@ object ExpImporter {
     /** 实验课在课表里的标记：重复导入时先移除上一批，再追加新的。 */
     const val EXP_COURSE_NUMBER = "EXP"
 
+    /** 手动添加课程的标记：重新导入课表时会被保留。 */
+    const val MANUAL_COURSE_NUMBER = "MANUAL"
+
     private const val HOST = "http://211.69.224.126:7100"
     private const val AES_KEY = "1234567891234567"
 
