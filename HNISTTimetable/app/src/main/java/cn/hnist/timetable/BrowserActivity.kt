@@ -65,7 +65,8 @@ class BrowserActivity : AppCompatActivity() {
             "统一认证门户" to "https://sso.hnist.edu.cn/portal/login.html",
             "教务系统" to "https://bkjw.hnist.cn/",
             "本学期课表" to "https://bkjw.hnist.cn/student/courseSelect/thisSemesterCurriculum/index",
-            "信息中心" to "https://ic.hnist.cn/"
+            "信息中心" to "https://ic.hnist.cn/",
+            "实验课系统" to "http://211.69.224.126:7100/BaseInfo/Index/"
         )
 
         /** 电脑模式下强制使用的排版宽度（CSS 像素），和普通笔记本浏览器差不多。 */
@@ -98,6 +99,7 @@ class BrowserActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        cn.hnist.timetable.ui.CrashGuard.install(this)
         setContentView(R.layout.activity_browser)
         repo = TimetableRepo(this)
 

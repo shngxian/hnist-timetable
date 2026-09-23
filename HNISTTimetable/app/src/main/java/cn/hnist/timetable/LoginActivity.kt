@@ -114,6 +114,7 @@ class LoginActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        cn.hnist.timetable.ui.CrashGuard.install(this)
         setContentView(R.layout.activity_login)
         repo = TimetableRepo(this)
         EdgeToEdge.setup(this, findViewById(R.id.root))

@@ -32,6 +32,7 @@ import cn.hnist.timetable.model.Course
 import cn.hnist.timetable.model.Timetable
 import cn.hnist.timetable.reminder.Reminders
 import cn.hnist.timetable.todo.TodoRepo
+import cn.hnist.timetable.ui.CrashGuard
 import cn.hnist.timetable.ui.EdgeToEdge
 import cn.hnist.timetable.ui.TimetableBackground
 import cn.hnist.timetable.ui.TimetableView
@@ -42,6 +43,8 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.textfield.TextInputEditText
+import java.io.PrintWriter
+import java.io.StringWriter
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -87,6 +90,19 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashGuard.install(this)
+        try {
+            initMain()
+        } catch (e: Throwable) {
+            crashed = true
+            CrashGuard.save(this, e)
+            showFatal(e)
+        }
+    }
+
+    private var crashed = false
+
+    private fun initMain() {
         setContentView(R.layout.activity_main)
         repo = TimetableRepo(this)
 
@@ -160,11 +176,92 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        reload()
-        Reminders.reschedule(this)
-        Reminders.rescheduleTodos(this)
-        uiHandler.removeCallbacks(minuteTick)
-        uiHandler.postDelayed(minuteTick, 60_000)
+        if (crashed) return
+        try {
+            reload()
+            Reminders.reschedule(this)
+            Reminders.rescheduleTodos(this)
+            uiHandler.removeCallbacks(minuteTick)
+            uiHandler.postDelayed(minuteTick, 60_000)
+        } catch (e: Throwable) {
+            crashed = true
+            CrashGuard.save(this, e)
+            showFatal(e)
+        }
+    }
+
+    /** 启动崩溃后的兜底界面：把错误报告展示出来供分享，也可以清空数据自救。 */
+    private fun showFatal(e: Throwable) {
+        val report = CrashGuard.lastReport(this)
+            ?: StringWriter().also { e.printStackTrace(PrintWriter(it)) }.toString()
+        val density = resources.displayMetrics.density
+        fun d(v: Float): Int = (v * density + 0.5f).toInt()
+
+        val scroll = androidx.core.widget.NestedScrollView(this)
+        val col = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(d(20f), d(40f), d(20f), d(32f))
+        }
+        val title = android.widget.TextView(this).apply {
+            text = "软件启动出错了"
+            textSize = 20f
+            setTextColor(0xFF1A1A1A.toInt())
+        }
+        val tip = android.widget.TextView(this).apply {
+            text = "抱歉！错误已经记录下来。点“分享错误报告”把内容发给开发者即可修复；也可以先试试“清空数据”（会删除已导入的课表、待办和背景）。"
+            textSize = 14f
+            setTextColor(0xFF666666.toInt())
+            setPadding(0, d(10f), 0, d(16f))
+        }
+        val body = android.widget.TextView(this).apply {
+            text = report
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTextColor(0xFF444444.toInt())
+            setTextIsSelectable(true)
+        }
+        val share = MaterialButton(this).apply {
+            text = "分享错误报告"
+            setOnClickListener {
+                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(android.content.Intent.EXTRA_SUBJECT, "湖理课表错误报告")
+                    putExtra(android.content.Intent.EXTRA_TEXT, report)
+                }
+                startActivity(android.content.Intent.createChooser(intent, "分享错误报告"))
+            }
+        }
+        val reset = MaterialButton(this).apply {
+            text = "清空数据并重启应用"
+            backgroundTintList = android.content.res.ColorStateList.valueOf(0xFFEEEEEE.toInt())
+            setTextColor(0xFFB71C1C.toInt())
+            setOnClickListener {
+                MaterialAlertDialogBuilder(this@MainActivity)
+                    .setTitle("清空数据")
+                    .setMessage("将删除导入的课表、待办和背景照片（无法恢复），然后重新开始。确定吗？")
+                    .setNegativeButton("取消", null)
+                    .setPositiveButton("清空") { _, _ ->
+                        TimetableRepo(this@MainActivity).clear()
+                        TodoRepo(this@MainActivity).save(emptyList())
+                        TimetableBackground.clear(this@MainActivity)
+                        CrashGuard.clear(this@MainActivity)
+                        recreate()
+                    }
+                    .show()
+            }
+        }
+        col.addView(title)
+        col.addView(tip)
+        col.addView(share)
+        col.addView(reset, android.widget.LinearLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = d(8f) })
+        col.addView(body, android.widget.LinearLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = d(16f) })
+        scroll.addView(col)
+        EdgeToEdge.setup(this, scroll)
+        setContentView(scroll)
     }
 
     override fun onPause() {
@@ -509,6 +606,7 @@ class MainActivity : AppCompatActivity() {
     // ---------- 菜单 ----------
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        if (crashed) return false
         menuInflater.inflate(R.menu.menu_main, menu)
         showOtherMenuItem = menu.findItem(R.id.action_show_other)
         showOtherMenuItem?.isChecked = repo.showOtherWeeks
@@ -530,6 +628,7 @@ class MainActivity : AppCompatActivity() {
             }
             R.id.action_reminder -> showReminderDialog()
             R.id.action_reimport -> openImport()
+            R.id.action_import_exp -> startActivity(android.content.Intent(this, ExpImportActivity::class.java))
             R.id.action_semester -> showSemesterDialog()
             R.id.action_background -> pickBackground.launch("image/*")
             R.id.action_bg_overlay -> showOverlayDialog()

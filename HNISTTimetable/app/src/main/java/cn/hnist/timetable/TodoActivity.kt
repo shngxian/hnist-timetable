@@ -47,6 +47,7 @@ class TodoActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        cn.hnist.timetable.ui.CrashGuard.install(this)
         setContentView(R.layout.activity_todo)
         repo = TodoRepo(this)
 

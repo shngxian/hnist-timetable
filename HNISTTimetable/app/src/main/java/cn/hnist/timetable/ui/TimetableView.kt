@@ -86,6 +86,11 @@ class TimetableView @JvmOverloads constructor(
         strokeWidth = 1f
     }
     private val todayPaint = Paint().apply { color = 0x184361EE }
+    private val todayStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0x664361EE
+        style = Paint.Style.STROKE
+        strokeWidth = dp(2f)
+    }
 
     init {
         setWillNotDraw(false)
@@ -261,7 +266,18 @@ class TimetableView @JvmOverloads constructor(
 
         if (todayColumn in 1..7) {
             val left = leftColumnWidth + (todayColumn - 1) * colWidth
+            val hasPhoto = bg != null && !bg.isRecycled
+            // 有背景照片时把高亮加深一档并加描边，保证任何照片上都能一眼认出“今天”这一列
+            todayPaint.alpha = if (hasPhoto) 0x38 else 0x18
             canvas.drawRect(left, 0f, left + colWidth, gridBottom, todayPaint)
+            if (hasPhoto) {
+                val inset = 1.5f * resources.displayMetrics.density
+                canvas.drawRect(
+                    left + inset, inset,
+                    left + colWidth - inset, gridBottom - inset,
+                    todayStrokePaint
+                )
+            }
         }
 
         for (n in 1..maxNode) {
