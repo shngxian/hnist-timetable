@@ -3,7 +3,7 @@
 仿 WakeUp / 超级课程表风格的 Android 课表 App，**只对接湖南理工学院教务系统**，
 输入学号 + 统一身份认证密码即可一键导入本学期课表。
 
-- 安装包：见本仓库 [Releases](../../releases)（正式版 v1.6.0，已签名，4.3 MB，Android 8.0+）
+- 安装包：见本仓库 [Releases](../../releases)（正式版 v1.6.1，已签名，4.2 MB，Android 8.0+）
 - 源码：`HNISTTimetable/`（Kotlin + Android View + Material 3，无第三方运行时依赖）
 - 调试版 APK 多一个“载入示例课表”按钮（内置了一份示例数据，仅用于验证界面），日常使用请装正式版。
 

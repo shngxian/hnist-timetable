@@ -18,6 +18,14 @@ Write-Host "==> 同步源码到 $BuildDir"
 robocopy $Source $BuildDir /MIR /XD build .gradle .idea .kotlin /NFL /NDL /NJH /NJS /NP | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy 失败，返回码 $LASTEXITCODE" }
 
+# 镜像里的旧编译产物/增量缓存会导致“源码换了两版、个别类还是上一版编译的”
+# （v1.5.4/v1.6.0 的闪退就是这么来的），所以每次都把编译产物整个清掉再编。
+Write-Host "==> 清理镜像里的旧编译产物"
+foreach ($stale in @('app\build', 'app\.gradle', 'app\.kotlin', 'build', '.gradle', '.kotlin')) {
+    $p = Join-Path $BuildDir $stale
+    if (Test-Path $p) { Remove-Item $p -Recurse -Force }
+}
+
 Write-Host "==> Gradle 编译 assemble$Variant"
 $env:JAVA_HOME = $JavaHome
 & $Gradle -p $BuildDir ":app:assemble$Variant" --console=plain

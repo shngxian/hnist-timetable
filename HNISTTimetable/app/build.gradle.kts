@@ -11,8 +11,8 @@ android {
         applicationId = "cn.hnist.timetable"
         minSdk = 26
         targetSdk = 35
-        versionCode = 20
-        versionName = "1.6.0"
+        versionCode = 21
+        versionName = "1.6.1"
         resourceConfigurations += listOf("zh-rCN")
     }
 
