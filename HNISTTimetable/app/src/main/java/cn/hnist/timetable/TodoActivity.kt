@@ -238,6 +238,22 @@ class TodoActivity : AppCompatActivity() {
             .setNegativeButton("取消", null)
             .setPositiveButton("保存", null)
             .create()
+        // 编辑已有待办时提供删除入口；新增时不显示
+        val btnDeleteTodo = view.findViewById<MaterialButton>(R.id.btnDeleteTodo)
+        btnDeleteTodo.isVisible = existing != null
+        btnDeleteTodo.setOnClickListener {
+            val target = existing ?: return@setOnClickListener
+            MaterialAlertDialogBuilder(this)
+                .setTitle("删除待办")
+                .setMessage("删除「${target.title}」？该操作不可撤销。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("删除") { _, _ ->
+                    repo.delete(target.id)
+                    onDataChanged()
+                    dialog.dismiss()
+                }
+                .show()
+        }
         dialog.setOnShowListener {
             etTitle.requestFocus()
             dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
@@ -391,7 +407,7 @@ class TodoActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
             val item = items[position]
-            TodoRowBinder.bind(holder.itemView, item, onToggle = { toggleDone(item) }, onClick = { showEditDialog(item) })
+            TodoRowBinder.bind(holder.itemView, item, onToggle = { toggleDone(item) }, onClick = { showEditDialog(item) }, onDelete = { deleteWithUndo(item) })
         }
     }
 
@@ -448,7 +464,8 @@ object TodoRowBinder {
             .show()
     }
 
-    fun bind(row: View, item: TodoItem, onToggle: () -> Unit, onClick: () -> Unit) {
+    /** [onDelete] 非空时，长按该行触发删除。 */
+    fun bind(row: View, item: TodoItem, onToggle: () -> Unit, onClick: () -> Unit, onDelete: (() -> Unit)? = null) {
         val context = row.context
         val check = row.findViewById<MaterialCheckBox>(R.id.check)
         val title = row.findViewById<TextView>(R.id.title)
@@ -579,5 +596,11 @@ object TodoRowBinder {
         }
 
         row.setOnClickListener { onClick() }
+        if (onDelete != null) {
+            row.setOnLongClickListener { onDelete(); true }
+        } else {
+            row.setOnLongClickListener(null)
+            row.isLongClickable = false
+        }
     }
 }

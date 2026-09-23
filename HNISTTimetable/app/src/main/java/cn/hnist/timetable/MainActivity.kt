@@ -31,7 +31,9 @@ import cn.hnist.timetable.data.TimetableRepo
 import cn.hnist.timetable.model.Course
 import cn.hnist.timetable.model.Timetable
 import cn.hnist.timetable.reminder.Reminders
+import cn.hnist.timetable.todo.TodoItem
 import cn.hnist.timetable.todo.TodoRepo
+import com.google.android.material.snackbar.Snackbar
 import cn.hnist.timetable.ui.CrashGuard
 import cn.hnist.timetable.ui.EdgeToEdge
 import cn.hnist.timetable.ui.TimetableBackground
@@ -416,10 +418,32 @@ class MainActivity : AppCompatActivity() {
                     // 稍等一下再刷新，让勾选动画走完
                     todoRows.postDelayed({ renderStartedTodos() }, 250)
                 },
-                onClick = { startActivity(Intent(this, TodoActivity::class.java)) }
+                onClick = { startActivity(Intent(this, TodoActivity::class.java)) },
+                onDelete = { confirmDeleteTodo(item) }
             )
             todoRows.addView(row)
         }
+    }
+
+    /** 长按删除主页下方的待办（含进行中和重复任务），可撤销。 */
+    private fun confirmDeleteTodo(item: TodoItem) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("删除待办")
+            .setMessage("删除「${item.title}」？")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("删除") { _, _ ->
+                todoRepo.delete(item.id)
+                Reminders.rescheduleTodos(this)
+                renderStartedTodos()
+                Snackbar.make(todoRows, "已删除「${item.title}」", Snackbar.LENGTH_LONG)
+                    .setAction("撤销") {
+                        todoRepo.update(item)
+                        Reminders.rescheduleTodos(this)
+                        renderStartedTodos()
+                    }
+                    .show()
+            }
+            .show()
     }
 
     private fun buildWeekBar(data: Timetable, realWeek: Int) {
