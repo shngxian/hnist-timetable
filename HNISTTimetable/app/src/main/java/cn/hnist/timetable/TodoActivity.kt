@@ -344,12 +344,14 @@ class TodoActivity : AppCompatActivity() {
         onDataChanged()
     }
 
-    private fun deleteWithUndo(item: TodoItem) {
-        repo.delete(item.id)
-        onDataChanged()
-        Snackbar.make(root, "已删除「${item.title}」", Snackbar.LENGTH_LONG)
-            .setAction("撤销") {
-                repo.update(item)
+    /** 滑动或长按删除：一律先弹确认窗；取消时把列表刷回来（滑动会先把行划走）。 */
+    private fun confirmDelete(item: TodoItem) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("删除待办")
+            .setMessage("删除「${item.title}」？")
+            .setNegativeButton("取消") { _, _ -> refresh() }
+            .setPositiveButton("删除") { _, _ ->
+                repo.delete(item.id)
                 onDataChanged()
             }
             .show()
@@ -407,7 +409,7 @@ class TodoActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
             val item = items[position]
-            TodoRowBinder.bind(holder.itemView, item, onToggle = { toggleDone(item) }, onClick = { showEditDialog(item) }, onDelete = { deleteWithUndo(item) })
+            TodoRowBinder.bind(holder.itemView, item, onToggle = { toggleDone(item) }, onClick = { showEditDialog(item) }, onDelete = { confirmDelete(item) })
         }
     }
 
@@ -416,7 +418,7 @@ class TodoActivity : AppCompatActivity() {
 
         override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
             val item = adapter.itemAt(viewHolder.adapterPosition)
-            if (item != null) deleteWithUndo(item) else adapter.notifyDataSetChanged()
+            if (item != null) confirmDelete(item) else adapter.notifyDataSetChanged()
         }
     }
 
