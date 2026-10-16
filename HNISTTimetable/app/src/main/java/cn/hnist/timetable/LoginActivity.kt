@@ -201,7 +201,10 @@ class LoginActivity : AppCompatActivity() {
                 )
                 if (error.errorCode in networkErrors) {
                     mainFrameFailed = true
-                    fail("网页加载失败：${error.description}。请确认手机能打开 bkjw.hnist.cn（校外可能需要连校园网或 VPN），然后点“重新导入”。")
+                    fail(
+                        "网页加载失败：${error.description}。校外请先在浏览器打开 https://vpn.hnist.cn " +
+                            "（学校统一认证外网入口）登录一次试试；点“重新导入”可重试。"
+                    )
                 }
             }
         }

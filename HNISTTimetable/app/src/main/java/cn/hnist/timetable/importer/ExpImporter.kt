@@ -47,7 +47,11 @@ object ExpImporter {
         val seat: String
     )
 
-    /** 网页端 Login.js 的密码加密：haha.he(Encrypt3(pwd)) = base64(base64(AES-ECB-PKCS7(pwd)))。 */
+    /**
+     * 网页端 Login.js 的密码加密：haha.he(Encrypt3(pwd)) = base64(base64(AES-ECB-PKCS7(pwd)))。
+     * 注意：ECB 与固定密钥都是学校服务器约定的协议格式（网页端源码原样如此），
+     * 这里必须逐字节复刻才能登录，不存在可替换的更强方案。
+     */
     fun encryptPassword(raw: String): String {
         val cipher = Cipher.getInstance("AES/ECB/PKCS5Padding")
         cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(AES_KEY.toByteArray(Charsets.UTF_8), "AES"))

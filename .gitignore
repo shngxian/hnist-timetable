@@ -10,12 +10,15 @@ build-tools/
 # 签名文件与本地配置
 *.jks
 *.keystore
+keystore.properties
+HNISTTimetable/keystore.properties
 HNISTTimetable/local.properties
 
 # 调试素材：pick_sample.jpg 为本人照片
 HNISTTimetable/app/src/debug/assets/pick_sample.jpg
 
 # 构建产物与 IDE
+.mimosa/
 HNISTTimetable/.gradle/
 HNISTTimetable/app/build/
 HNISTTimetable/build/
@@ -27,3 +30,4 @@ HNISTTimetable/.kotlin/
 *.iml
 .DS_Store
 Thumbs.db
+commit-v172.txt

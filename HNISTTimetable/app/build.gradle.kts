@@ -1,6 +1,15 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+}
+
+// 签名信息从仓库外的 keystore.properties 读取（该文件不入库），
+// 格式：storeFile=keystore.jks / storePassword=... / keyAlias=... / keyPassword=...
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -11,17 +20,17 @@ android {
         applicationId = "cn.hnist.timetable"
         minSdk = 26
         targetSdk = 35
-        versionCode = 24
-        versionName = "1.7.1"
+        versionCode = 25
+        versionName = "1.7.2"
         resourceConfigurations += listOf("zh-rCN")
     }
 
     signingConfigs {
         create("release") {
-            storeFile = file("keystore.jks")
-            storePassword = "hnist2026"
-            keyAlias = "hnist"
-            keyPassword = "hnist2026"
+            storeFile = file(keystoreProps.getProperty("storeFile", "keystore.jks"))
+            storePassword = keystoreProps.getProperty("storePassword", "")
+            keyAlias = keystoreProps.getProperty("keyAlias", "hnist")
+            keyPassword = keystoreProps.getProperty("keyPassword", "")
         }
     }
 

@@ -62,7 +62,8 @@ class BrowserActivity : AppCompatActivity() {
 
         val QUICK_LINKS = listOf(
             "学校官网" to "https://www.hnist.edu.cn/",
-            "统一认证门户" to "https://sso.hnist.edu.cn/portal/login.html",
+            "统一认证（校内）" to "https://sso.hnist.edu.cn/portal/login.html",
+            "统一认证（校外）" to "https://vpn.hnist.cn/",
             "教务系统" to "https://bkjw.hnist.cn/",
             "本学期课表" to "https://bkjw.hnist.cn/student/courseSelect/thisSemesterCurriculum/index",
             "信息中心" to "https://ic.hnist.cn/",

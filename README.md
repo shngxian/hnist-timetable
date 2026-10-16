@@ -4,7 +4,7 @@
 仿 WakeUp / 超级课程表风格的 Android 课表 App，**只对接湖南理工学院教务系统**，
 输入学号 + 统一身份认证密码即可一键导入本学期课表。
 
-- 安装包：见本仓库 [Releases](../../releases)（正式版 v1.7.0，已签名，4.2 MB，Android 8.0+）
+- 安装包：见本仓库 [Releases](../../releases)（正式版 v1.7.2，已签名，4.2 MB，Android 8.0+）
 - 源码：`HNISTTimetable/`（Kotlin + Android View + Material 3，无第三方运行时依赖）
 - 调试版 APK 多一个“载入示例课表”按钮（内置了一份示例数据，仅用于验证界面），日常使用请装正式版。
 
@@ -78,11 +78,13 @@
 
 首次运行 gradlew 会自动下载 Gradle 8.7；需要 JDK 17。`build.ps1` 是本机用的完整脚本：
 先把源码镜像到 `D:\hnist_build\HNISTTimetable`（Android Gradle 插件不支持含中文的项目路径），
-编译后把 APK 拷回本目录。正式版签名文件 `app/keystore.jks` 不上传，需要的同学自行生成并按
-`app/build.gradle.kts` 里的 signingConfig 配置。
+编译后把 APK 拷回本目录。正式版签名：把 `keystore.jks` 放到 `app/` 下，并在工程根目录建一个
+`keystore.properties`（格式：storeFile / storePassword / keyAlias / keyPassword，该文件不入库）；
+没有签名文件时只能构建 debug 版。
 
 ## 已知说明
 
+- 校外使用：学校统一认证的外网入口是 `https://vpn.hnist.cn`（内置浏览器的“统一认证（校外）”入口），账号密码与校内一致；校内仍是 `sso.hnist.edu.cn`。
 - 如果软件闪退，再次打开主页会出现“分享错误报告”，把内容发给开发者即可精确定位问题；报告只含出错堆栈和机型信息。
 - 只支持“本学期课表”接口；换学期后重新导入即可。
 - 开学日期由导入当天教务系统显示的“第 N 周 星期 X”推算，若学校调整周次，可在“学期设置”里改。
