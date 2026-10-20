@@ -65,7 +65,7 @@ class BrowserActivity : AppCompatActivity() {
             "统一认证（校内）" to "https://sso.hnist.edu.cn/portal/login.html",
             "统一认证（校外）" to "https://vpn.hnist.cn/",
             "教务系统" to "https://bkjw.hnist.cn/",
-            "本学期课表" to "https://bkjw.hnist.cn/student/courseSelect/thisSemesterCurriculum/index",
+            "本学期课表" to "https://bkjw.hnist.cn/student/personalSenate/giveLessonInfo/thisSemesterSchedule/weekLySchedule",
             "信息中心" to "https://ic.hnist.cn/",
             "实验课系统" to "http://211.69.224.126:7100/BaseInfo/Index/"
         )

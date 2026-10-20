@@ -104,6 +104,10 @@ object UrpParser {
             throw ParseException("本学期没有查询到任何课程")
         }
 
+        // 周次以教务处发布的校历为准（jwc.hnist.cn/bszn/xl.htm，本学期校历：2026.9.7-2027.1.10
+        // 共 18 周，第一周 = 9 月 7 日-9 月 13 日，无第 0 周），页面顶栏文字与校历同源、页面新鲜时是准的；
+        // csz 实测是页面选周控件的值而非实时周，不作依据。页面可能整页缓存数周之久，
+        // 缓存问题在 LoginActivity 侧通过导入期间禁用缓存解决。
         val navWeek = Regex("第\\s*(\\d+)\\s*周").find(navText)?.groupValues?.get(1)?.toIntOrNull()
             ?: root.optString("csz").toIntOrNull()
 
@@ -120,9 +124,15 @@ object UrpParser {
         val maxWeekUsed = courses.maxOfOrNull { it.weeks.max() } ?: 0
         val totalWeeks = maxOf(20, maxWeekUsed).coerceAtMost(30)
 
+        // 教务处校历（jwc.hnist.cn/bszn/xl.htm）核实的开学日期是权威源：学期名匹配到就
+        // 直接采用，页面顶栏的周次计数无论滞后还是带偏都不影响开学日期；
+        // 查不到（新学期校历还没核进 App）才用页面推算值，实验课导入会进一步自动校正。
+        val semester = semesterName(navText, planNumber)
+        val finalStartDate = CALENDAR_START_DATES[semester] ?: startDate.toString()
+
         return Timetable(
-            semesterName = semesterName(navText, planNumber),
-            startDate = startDate.toString(),
+            semesterName = semester,
+            startDate = finalStartDate,
             totalWeeks = totalWeeks,
             studentName = studentName.trim(),
             studentId = studentId,
@@ -168,4 +178,28 @@ object UrpParser {
         }
         return "本学期"
     }
+
+    /**
+     * 重新导入时裁决开学日期。教务页面的周次计数偶尔会滞后/带偏（差恰好几个整周），
+     * 若新日期与本地已校准日期相差整周倍数（≤8 周），视为同一学期的计数漂移，保留原日期；
+     * 相差更大或本地没有记录，视为学期更替，采用新日期。
+     */
+    fun reconcileStartDate(oldStart: String?, newStart: String): String {
+        val new = runCatching { LocalDate.parse(newStart) }.getOrNull() ?: return newStart
+        val old: LocalDate? = oldStart?.takeIf { it.isNotBlank() }
+            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        if (old == null || old == new) return newStart
+        val days = Math.abs(java.time.temporal.ChronoUnit.DAYS.between(old, new))
+        return if (days % 7 == 0L && days / 7 in 1..8) old.toString() else newStart
+    }
+
+    /**
+     * 教务处校历（jwc.hnist.cn/bszn/xl.htm）核实过的开学日期：学期名 → 第 1 周周一。
+     * 页面顶栏的周次计数偶尔滞后/带偏（差恰好整周），学期名匹配到时以校历为准，
+     * 自动纠正计数漂移；新学期发布校历后在此表加一行并更新 App 即可。
+     */
+    val CALENDAR_START_DATES = mapOf(
+        // 校历：秋季学期 2026.9.7-2027.1.10 共 18 周，第一周 = 9 月 7 日-9 月 13 日
+        "2026-2027 秋季学期" to "2026-09-07"
+    )
 }

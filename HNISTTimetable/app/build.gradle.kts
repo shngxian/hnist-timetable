@@ -20,8 +20,8 @@ android {
         applicationId = "cn.hnist.timetable"
         minSdk = 26
         targetSdk = 35
-        versionCode = 25
-        versionName = "1.7.2"
+        versionCode = 32
+        versionName = "1.7.9"
         resourceConfigurations += listOf("zh-rCN")
     }
 

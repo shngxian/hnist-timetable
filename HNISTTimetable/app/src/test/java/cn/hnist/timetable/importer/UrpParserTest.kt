@@ -38,16 +38,54 @@ class UrpParserTest {
         // 第 1 周星期日是 9 月 13 日，则第 1 周周一为 9 月 7 日
         assertEquals("2026-09-07", tt.startDate)
 
-        val week3 = UrpParser.parse(json, "2026-2027 秋（两） 第3周 星期三", "", LocalDate.of(2026, 9, 23))
+        // 第 3 周（csz=3，校历从第 0 周起算，第 3 周 = 9/21-9/27）
+        val week3json = json.replaceFirst("\"csz\":\"1\"", "\"csz\":\"3\"")
+        val week3 = UrpParser.parse(week3json, "2026-2027 秋（两） 第3周 星期三", "", LocalDate.of(2026, 9, 23))
         assertEquals("2026-09-07", week3.startDate)
     }
 
     @Test
     fun ignoresStaleWeekdayInNavbar() {
-        // 网页顶栏缓存的“星期几”可能是旧值（周二还显示周一），开学日必须按手机的实际星期推。
+        // 周次优先取接口 csz（服务器实时算出的当前周）；页面顶栏的“星期几”即使缓存了旧值也不影响。
         // 实际 bug：2026-09-22（周二，第 3 周）导入时页面还显示“星期一”，开学日被算成 09-08。
-        val stale = UrpParser.parse(json, "2026-2027 秋（两） 第3周 星期一", "", LocalDate.of(2026, 9, 22))
+        val week3json = json.replaceFirst("\"csz\":\"1\"", "\"csz\":\"3\"")
+        val stale = UrpParser.parse(week3json, "2026-2027 秋（两） 第3周 星期一", "", LocalDate.of(2026, 9, 22))
         assertEquals("2026-09-07", stale.startDate)
+    }
+
+    @Test
+    fun fallsBackToNavWeekWithoutCsz() {
+        // 接口没给 csz 时，退回页面顶栏的“第 N 周”
+        val noCsz = json.replaceFirst("\"csz\":\"1\"", "\"csz\":\"\"")
+        val tt = UrpParser.parse(noCsz, "2026-2027 秋（两） 第3周 星期三", "", LocalDate.of(2026, 9, 23))
+        assertEquals("2026-09-07", tt.startDate)
+    }
+
+    @Test
+    fun reconcileKeepsLocalStartOnWeekMultipleDrift() {
+        // 学校周次计数漂移整周（这里差 6 周）时，保留本地已校准的开学日期
+        assertEquals(
+            "2026-09-07",
+            UrpParser.reconcileStartDate("2026-09-07", "2026-10-19")
+        )
+        // 相差不是整周倍数 → 学期更替，采用新日期
+        assertEquals(
+            "2027-03-01",
+            UrpParser.reconcileStartDate("2026-09-07", "2027-03-01")
+        )
+        // 本地没有记录 → 采用新日期；相同 → 原样
+        assertEquals("2026-09-07", UrpParser.reconcileStartDate(null, "2026-09-07"))
+        assertEquals("2026-09-07", UrpParser.reconcileStartDate("2026-09-07", "2026-09-07"))
+    }
+
+    @Test
+    fun knownCalendarOverridesCounterConfusion() {
+        // 用户实际案例：教务页面顶栏的周次计数与校历差一周（页面说"第2周"，实际已是第 3 周；
+        // 甚至显示"第0周"）。学期名匹配到校历表时，开学日期永远是权威的 9/7。
+        val drift = UrpParser.parse(json, "2026-2027 秋（两） 第2周 星期二", "", LocalDate.of(2026, 9, 22))
+        assertEquals("2026-09-07", drift.startDate)
+        val zero = UrpParser.parse(json, "2026-2027 秋（两） 第0周 星期二", "", LocalDate.of(2026, 9, 22))
+        assertEquals("2026-09-07", zero.startDate)
     }
 
     @Test

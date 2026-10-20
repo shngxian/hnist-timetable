@@ -81,12 +81,18 @@ class ExpImportActivity : AppCompatActivity() {
                     ?: throw ExpImporter.ExpImportException("请先在主页导入课表，再导入实验课")
                 val merged = ExpImporter.merge(timetable, sessions)
                 repo.save(merged)
+                // 实验系统自带的官方周次是权威值：把按它校准出的开学日期存为本机权威值，
+                // 之后重新导入主课表时，页面周次计数即使漂移也不会再冲掉它
+                repo.expCalibratedStart = merged.startDate
+                // 实验系统的官方周次若和本地开学日期对不上（本地被带偏过），这里已自动校正
+                val corrected = merged.startDate != timetable.startDate
                 if (cbRemember.isChecked) saveCredentials(sid, pwd) else clearCredentials()
                 runOnUiThread {
                     progress.isVisible = false
+                    val note = if (corrected) "\n检测到开学日期有偏差，已自动校正为 ${merged.startDate}。" else ""
                     MaterialAlertDialogBuilder(this)
                         .setTitle("导入完成")
-                        .setMessage("已把 ${sessions.size} 条实验课合并到课表，返回主页即可看到。")
+                        .setMessage("已把 ${sessions.size} 条实验课合并到课表，返回主页即可看到。$note")
                         .setCancelable(false)
                         .setPositiveButton("好的") { _, _ -> finish() }
                         .show()

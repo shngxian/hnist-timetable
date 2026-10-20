@@ -112,4 +112,26 @@ class ExpImporterTest {
         // 普通课还在
         assertTrue(second.courses.any { it.courseName == "概率论与数理统计A" })
     }
+
+    @Test
+    fun mergeCorrectsDriftedStartDateFromOfficialWeeks() {
+        // 用户手机的实际案例：本地开学日期被带偏成 9/14（差一周），
+        // 实验系统自带的官方周次（第 3 周）应当把开学日期校正回 9/7
+        val timetable = Timetable(
+            semesterName = "2026-2027 秋季学期",
+            startDate = "2026-09-14",
+            totalWeeks = 20,
+            studentName = "张三",
+            studentId = "20240000001",
+            nodeTimes = nodeTimes,
+            courses = emptyList(),
+            unscheduled = emptyList(),
+            importedAt = 0L
+        )
+        val merged = ExpImporter.merge(timetable, ExpImporter.parseSessions(apiJson))
+
+        assertEquals("2026-09-07", merged.startDate)            // 自动校正回官方周一对齐
+        val dianbiao = merged.courses.first { it.courseName == "电表的改装与定标" }
+        assertEquals(3, dianbiao.weeks.single())                // 按官方周次第 3 周，而不是错位的第 2 周
+    }
 }

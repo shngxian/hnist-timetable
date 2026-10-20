@@ -77,6 +77,14 @@ class TimetableRepo(context: Context) {
         get() = prefs.getBoolean(KEY_NOTIF_ASKED, false)
         set(value) = prefs.edit().putBoolean(KEY_NOTIF_ASKED, value).apply()
 
+    /**
+     * 实验课导入时按官方周次校准出的开学日期（权威值，来自实验系统接口自带的周次）。
+     * 教务页面的周次计数偶尔滞后/带偏，一旦有了这个校准值，重新导入主课表时以它为准。
+     */
+    var expCalibratedStart: String
+        get() = prefs.getString(KEY_EXP_CALIBRATED_START, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_EXP_CALIBRATED_START, value).apply()
+
     /** 内置浏览器是否使用电脑模式（桌面 User-Agent）。 */
     var browserDesktopMode: Boolean
         get() = prefs.getBoolean(KEY_BROWSER_DESKTOP, false)
@@ -98,6 +106,7 @@ class TimetableRepo(context: Context) {
         private const val KEY_NOTIF_ASKED = "notification_permission_asked"
         private const val KEY_BROWSER_DESKTOP = "browser_desktop_mode"
         private const val KEY_BG_OVERLAY = "background_overlay_alpha"
+        private const val KEY_EXP_CALIBRATED_START = "exp_calibrated_start"
 
         /** 根据开学日期计算某一天属于第几周（可能小于 1 或大于总周数，由调用方裁剪）。 */
         fun weekOf(startDate: LocalDate, date: LocalDate): Int {

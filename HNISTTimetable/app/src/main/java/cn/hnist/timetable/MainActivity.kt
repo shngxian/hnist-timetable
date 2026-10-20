@@ -809,6 +809,8 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("保存") { _, _ ->
                 val weeks = etWeeks.text?.toString()?.trim()?.toIntOrNull()?.coerceIn(1, 30) ?: data.totalWeeks
                 repo.updateSemester(picked, weeks)
+                // 手动设置的开学日期是用户明确的意图，清除实验课的自动校准值，避免下次导入又被改回去
+                repo.expCalibratedStart = ""
                 reload()
                 Reminders.reschedule(this)
             }

@@ -8,6 +8,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.time.DayOfWeek
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
@@ -35,7 +36,7 @@ object ExpImporter {
 
     class ExpImportException(message: String) : Exception(message)
 
-    /** 一条实验安排（学生的一次选课）。 */
+    /** 一条实验安排（学生的一次选课）。week 是实验系统自带的官方教学周次（0 = 接口没给）。 */
     data class ExpSession(
         val labName: String,
         val courseName: String,
@@ -44,7 +45,8 @@ object ExpImporter {
         val start: LocalTime,
         val end: LocalTime,
         val room: String,
-        val seat: String
+        val seat: String,
+        val week: Int
     )
 
     /**
@@ -85,7 +87,8 @@ object ExpImporter {
                 start = start,
                 end = end,
                 room = o.optString("ClassRoom").trim(),
-                seat = o.optString("SeatNo").trim()
+                seat = o.optString("SeatNo").trim(),
+                week = o.optString("Weeks").trim().toIntOrNull() ?: 0
             )
         }
         return list.distinctBy { "${it.labName}|${it.courseName}|${it.date}|${it.start}|${it.room}|${it.seat}" }
@@ -126,13 +129,33 @@ object ExpImporter {
         return first to (last - first + 1)
     }
 
-    /** 合并进现有课表：移除上一批实验课，按开学日期折算周次后追加。 */
+    /**
+     * 合并进现有课表：移除上一批实验课，按官方周次追加。
+     *
+     * 周次以实验系统自带的 `Weeks` 为准（那是学校官方教学周）；如果据此反推出的
+     * “第 1 周周一”和本地开学日期对不上（本地日期被带偏过，比如差了一周），
+     * 会自动把本地开学日期校正回来，实验课和整张课表的周次随之对齐。
+     */
     fun merge(timetable: Timetable, sessions: List<ExpSession>): Timetable {
-        val startDate = runCatching { LocalDate.parse(timetable.startDate) }.getOrNull()
+        // 校历核实的开学日期是权威源（学期名匹配上时）；否则用本地日期
+        val localStart = UrpParser.CALENDAR_START_DATES[timetable.semesterName]
+            ?.let { s -> runCatching { LocalDate.parse(s) }.getOrNull() }
+            ?: runCatching { LocalDate.parse(timetable.startDate) }.getOrNull()
+        // 反推官方“第 1 周周一”：实验日期所在周的周一，往回数 (week-1) 周
+        val impliedStarts = sessions.filter { it.week >= 1 }
+            .map { it.date.with(DayOfWeek.MONDAY).minusWeeks((it.week - 1).toLong()) }
+            .distinct()
+        val start = when {
+            impliedStarts.size == 1 -> impliedStarts[0]   // 官方周次一致 → 以学校为准
+            localStart != null -> localStart
+            else -> null
+        }
         val kept = timetable.courses.filterNot { it.courseNumber == EXP_COURSE_NUMBER }
         val expCourses = mutableListOf<Course>()
         for (s in sessions) {
-            val week = startDate?.let { TimetableRepo.weekOf(it, s.date) } ?: 0
+            val week = s.week.takeIf { it >= 1 }
+                ?: start?.let { TimetableRepo.weekOf(it, s.date) }
+                ?: continue
             if (week < 1) continue
             val nodes = mapNodes(s.start, s.end, timetable.nodeTimes) ?: continue
             val roomText = listOf(s.room, if (s.seat.isBlank()) "" else "${s.seat}座")
@@ -156,7 +179,10 @@ object ExpImporter {
                 colorIndex = 11
             )
         }
+        val maxUsed = (kept + expCourses).maxOfOrNull { it.weeks.max() } ?: 0
         return timetable.copy(
+            startDate = start?.toString() ?: timetable.startDate,
+            totalWeeks = maxOf(timetable.totalWeeks, maxUsed).coerceAtMost(30),
             courses = (kept + expCourses).sortedWith(compareBy({ it.day }, { it.startNode }))
         )
     }

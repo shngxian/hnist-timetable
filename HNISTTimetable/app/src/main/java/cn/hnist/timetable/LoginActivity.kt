@@ -302,6 +302,10 @@ class LoginActivity : AppCompatActivity() {
         repo.savedPassword = if (cbRemember.isChecked) password else ""
 
         stopImport()
+        // 教务页面可能被 WebView 缓存数周之久（旧页面顶栏的“第 N 周”会让开学日期错位数周），
+        // 导入期间一律禁用缓存、每次清掉旧缓存，保证周次来自新鲜页面。
+        webView.clearCache(true)
+        webView.settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
         importing = true
         finished = false
         autoLoginAttempted = false
@@ -497,20 +501,54 @@ class LoginActivity : AppCompatActivity() {
         try {
             val timetable = UrpParser.parse(json, navText, studentName, LocalDate.now())
             // 手动添加的课程和实验课不属于教务系统数据，重新导入课表时保留它们
-            val preserved = repo.load()?.courses?.filter {
+            val previous = repo.load()
+            val preserved = previous?.courses?.filter {
                 it.courseNumber == ExpImporter.MANUAL_COURSE_NUMBER || it.courseNumber == ExpImporter.EXP_COURSE_NUMBER
             } ?: emptyList()
-            val finalTimetable = if (preserved.isEmpty()) timetable
+            var finalTimetable = if (preserved.isEmpty()) timetable
             else timetable.copy(
                 courses = (timetable.courses + preserved).sortedWith(compareBy({ it.day }, { it.startNode }))
             )
+            // 教务页面的周次计数偶尔会滞后/带偏（整周倍数差异），与本地已校准的开学日期冲突时
+            // 保留本地日期，避免整张课表错位；相差够大（学期真正更替）才采用新日期。
+            var startDate = timetable.startDate
+            // 实验课导入按官方周次校准过的开学日期是权威值：页面计数漂移时以它为准
+            val calibrated = repo.expCalibratedStart
+            if (calibrated.isNotBlank()) {
+                val days = runCatching {
+                    java.time.temporal.ChronoUnit.DAYS.between(
+                        LocalDate.parse(calibrated), LocalDate.parse(timetable.startDate)
+                    )
+                }.getOrNull()
+                // 与权威值差整数周（≤8 周）→ 计数漂移，回到权威值；差更远 → 学期更替，换新校准
+                if (days != null && days % 7 == 0L && Math.abs(days) / 7 in 1..8) {
+                    startDate = calibrated
+                } else if (days != null && Math.abs(days) / 7 > 8) {
+                    repo.expCalibratedStart = ""
+                }
+            }
+            // 学期名在内置校历表（教务处校历核实过的开学日期）里时，校历日期是权威值，
+            // 不做“保留本地”裁决——本地旧值可能正是之前被带偏的历史值
+            val calendarAuthoritative = UrpParser.CALENDAR_START_DATES.containsKey(finalTimetable.semesterName)
+            if (!calendarAuthoritative) {
+                val keptDate = UrpParser.reconcileStartDate(previous?.startDate, startDate)
+                if (keptDate != startDate) {
+                    startDate = keptDate
+                }
+            }
+            if (startDate != timetable.startDate) {
+                finalTimetable = finalTimetable.copy(startDate = startDate)
+            }
             repo.save(finalTimetable)
             finished = true
             stopImport()
             progress.isVisible = false
             Reminders.reschedule(this)
             val summary = "导入成功：${finalTimetable.courses.size} 条课程安排" +
-                if (timetable.unscheduled.isNotEmpty()) "，另有 ${timetable.unscheduled.size} 门未排课" else ""
+                (if (timetable.unscheduled.isNotEmpty()) "，另有 ${timetable.unscheduled.size} 门未排课" else "") +
+                (if (startDate != timetable.startDate)
+                    "；检测到周次计数偏差，开学日期保留为 $startDate（如确实更换学期，请在“学期设置”里修改）"
+                else "")
             setStatus(summary)
             Toast.makeText(this, summary, Toast.LENGTH_LONG).show()
             handler.postDelayed({ finish() }, 600)
